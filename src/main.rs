@@ -1,76 +1,50 @@
-use std::{
-    fs::{File, OpenOptions},
-    io::{BufRead, BufReader, BufWriter, Write},
-    sync::mpsc,
-    thread,
-    time::Instant,
-};
-
-fn main() {
-    let input_file_name = "input.txt";
-    let output_file_name = "output.txt";
-    let start_time = Instant::now();
-    let (tx_input, rx_input) = mpsc::channel();
-
-    let (tx_output, rx_output) = mpsc::channel::<i128>();
-    // read from file is sloww it is good to have this on the separte thead
-    let read_builder = thread::Builder::new().name("ReadThread".into());
-    let read_thread = read_builder.spawn(move || {
-        let handle = thread::current();
-        // println!("{:?}", handle.name());
-        let input_file = File::open(input_file_name).unwrap();
-        let read = BufReader::new(input_file);
-        for line in read.lines() {
-            // println!("Reading line '{:?}'", line);
-            tx_input
-                .send(line.unwrap().parse::<i128>().unwrap())
-                .unwrap();
-        }
-    });
-
-    let write_builder = thread::Builder::new().name("WriteThread".into());
-    // Write to File is Also Slow so use Separted Therad
-    let writing_thread = write_builder.spawn(move || {
-        let handle = thread::current();
-        // println!("{:?}", handle.name());
-        let output_file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(output_file_name)
-            .unwrap();
-        let mut writer = BufWriter::new(output_file);
-
-        for num in rx_output {
-            let num_str = num.to_string();
-            writer.write_all(num_str.as_bytes()).unwrap();
-            writer.write_all(b"\n").unwrap();
-            // println!(" [!] Wrote num {}", num);
-        }
-        writer.flush().unwrap();
-    });
-
-    for num in rx_input {
-        // println!("[+] Reciverd message: '{}'.", num);
-        let compute_nums = num * num * num * num;
-
-        tx_output.send(compute_nums).unwrap();
+use reqwest::StatusCode;
+use std::time::{Duration, Instant};
+use tokio::time::sleep;
+async fn heartbeat(mut num: u32) {
+    loop {
+        println!("Beating ...{}", num);
+        sleep(Duration::from_millis(25)).await;
+        num += 1;
     }
-    // Need to drop tx_output hear, otherwise the loop over rx_output in write_tread will never end
-    // Or Fins
-    drop(tx_output);
+}
 
-    read_thread.expect("REASON Unknown").join().unwrap();
-    writing_thread.expect("REASON UnKnown").join().unwrap();
-    // End measuring the execution time.
-    let duration = start_time.elapsed();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = Instant::now();
+    tokio::spawn(heartbeat(0));
+    // Waits on multiple concurrent branches, returning when all branches complete.
+    // The join! macro must be used inside of async functions, closures, and blocks.
+    // The join! macro takes a list of async expressions and evaluates them concurrently on the same task. Each async expression evaluates to a future and the futures from each expression are multiplexed on the current task.
+    let (status_one, status_two) = tokio::join!(
+        get_status("https://docs.rs/reqwest/latest/reqwest/index.html"),
+        get_status("https://docs.rs/dioxus/latest/dioxus/struct.LaunchBuilder.html")
+    );
+    // Waits on multiple concurrent branches, returning when the first branch completes, cancelling the remaining branches.
+    // The select! macro must be used inside of async functions, closures, and blocks.
+    // The select! macro accepts one or more branches with the following pattern:
+    // <pattern> = <async expression> (, if <precondition>)? => <handler>,
+    //`
+    // tokio::select! {
+    //   status = get_status("https://docs.rs/reqwest/latest/reqwest/index.html") => println!("[+] Status 1 {:?}", status),
+    //   status = get_status("https://docs.rs/dioxus/latest/dioxus/struct.LaunchBuilder.html") => println!("[+] Status 1 {:?}", status),
+    // };
+    // `
 
-    println!("\nProcessing finished.");
-    println!("Total execution time: {:?}", duration);
-    // Measure the elapsed time
-    //     let elapsed_time = start_time.elapsed();
-    //     println!(
-    //         "[+] Processing completed in: {} seconds and {} milliseconds",
-    //         elapsed_time.as_secs(),
-    //         elapsed_time.subsec_millis()
-    //     );
+    println!("[+] Status 1 {:?}", status_one);
+    println!("[+] Status 2 {:?}", status_two);
+    println!(
+        "[+] Overall execution time: {}ms",
+        start_time.elapsed().as_millis()
+    );
+    Ok(())
+}
+
+async fn get_status(url: &str) -> Result<StatusCode, Box<dyn std::error::Error>> {
+    let start_time = Instant::now();
+
+    let status_code = reqwest::get(url).await?.status();
+    let duration = start_time.elapsed().as_millis();
+    println!("took {}ms to feach url [+] `{}`", duration, url);
+    Ok(status_code)
 }
