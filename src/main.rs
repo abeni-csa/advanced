@@ -66,4 +66,11 @@ fn main() {
 
     println!("\nProcessing finished.");
     println!("Total execution time: {:?}", duration);
+    // Measure the elapsed time
+    //     let elapsed_time = start_time.elapsed();
+    //     println!(
+    //         "[+] Processing completed in: {} seconds and {} milliseconds",
+    //         elapsed_time.as_secs(),
+    //         elapsed_time.subsec_millis()
+    //     );
 }
