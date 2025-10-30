@@ -3,6 +3,15 @@ name = "threads"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "csv_bin"
+path = "src/main.rs"
+
+[lib]
+name = "csv_library"
+path = "src/lib.rs"
+
+
 [dependencies]
 tokio = { version="1.48.0" , features = ["full"] }
 reqwest = { version="0.12.24"}
